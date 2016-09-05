@@ -75047,7 +75047,6 @@ ooley,uli
 oolong,ulɔŋ
 oomph,umf
 oona,unʌ
-oooh,u
 ooohs,uz
 oop,up
 ooph,uf
@@ -99081,7 +99080,6 @@ sroka,ʃɹoʊkʌ
 sroufe,ʃɹoʊf
 srpska,sɹʌpskʌ
 ssangyong,sæŋjɔŋ
-st,seIntdʒeImz
 sta,stʌ
 staab,stab
 staack,stak
@@ -111525,7 +111523,6 @@ vy,vaI
 vyacheslav,vjatʃʌslav
 vyas,vjas
 vying,vaIIŋ
-w,dʌbʌlju
 wa,wa
 waack,wak
 waag,wag
@@ -115002,7 +114999,6 @@ wrye,ɹaI
 wryly,ɹaIli
 wryness,ɹaInʌs
 wrzesinski,ɹʌzIsInski
-ws,dʌbʌljuɛs
 wu,wu
 wubben,wʌbʌn
 wuellner,wʊlnəɹ
@@ -116615,4 +116611,3 @@ zysk,zIsk
 zyskowski,zIskɔfski
 zyuganov,zjuganav
 zywicki,zIwIki
-,bɹeIs

@@ -46,12 +46,9 @@ func newNetwork(inSymbols, outSymbols int) rnn.SeqFunc {
 	}
 	outNet.Randomize()
 
-	forwardBlock := rnn.StackedBlock{
-		rnn.NewLSTM(inSymbols+1, forwardHidden),
-	}
-	backwardBlock := rnn.StackedBlock{
-		rnn.NewLSTM(inSymbols+1, backwardHidden),
-	}
+	forwardBlock := rnn.NewLSTM(inSymbols+1, forwardHidden)
+	backwardBlock := rnn.NewLSTM(inSymbols+1, backwardHidden)
+
 	return &rnn.Bidirectional{
 		Forward:  &rnn.BlockSeqFunc{Block: forwardBlock},
 		Backward: &rnn.BlockSeqFunc{Block: backwardBlock},

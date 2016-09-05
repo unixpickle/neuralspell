@@ -10,8 +10,8 @@ import (
 	"github.com/unixpickle/weakai/rnn"
 )
 
-const phoneSequenceSpacing = 2
-const letterSequenceSpacing = 2
+const phoneSequenceSpacing = 3
+const letterSequenceSpacing = 3
 
 // Spell generates a spelling for a phonetic string using
 // a trained speller network.

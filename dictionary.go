@@ -39,6 +39,9 @@ func ReadDictionary(file string) (*Dictionary, error) {
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("line %d: expected two columns", i)
 		}
+		if len(parts[0]) == 0 || len(parts[1]) == 0 {
+			return nil, fmt.Errorf("line %d: columns may not be empty", i)
+		}
 		for _, x := range parts[0] {
 			if x < 'a' || x > 'z' {
 				return nil, fmt.Errorf("line %d: unexpected letter: %c", i, x)
