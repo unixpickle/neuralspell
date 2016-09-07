@@ -14,9 +14,9 @@ const LetterCount = 26
 
 const (
 	hiddenDropout  = 0.5
-	outHidden      = 50
-	forwardHidden  = 30
-	backwardHidden = 10
+	outHidden      = 100
+	forwardHidden  = 80
+	backwardHidden = 40
 )
 
 func NewSpeller() rnn.SeqFunc {
