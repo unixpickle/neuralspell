@@ -1,57 +1,99 @@
 package neuralspell
 
 import (
-	"github.com/unixpickle/weakai/neuralnet"
-	"github.com/unixpickle/weakai/rnn"
+	"github.com/unixpickle/anydiff/anyseq"
+	"github.com/unixpickle/anynet"
+	"github.com/unixpickle/anynet/anyctc"
+	"github.com/unixpickle/anynet/anyrnn"
+	"github.com/unixpickle/anyvec"
+	"github.com/unixpickle/essentials"
+	"github.com/unixpickle/serializer"
 )
 
-var Phones = []string{
-	"ɹ", "θ", "I", "s", "ʃ", "j", "v", "æ", "ʊ", "ŋ", "u", "o", "h", "l", "a", "g", "ɛ",
-	"d", "z", "t", "p", "n", "m", "e", "b", "i", "f", "ð", "ʌ", "ɔ", "ʒ", "w", "ə", "k",
+func init() {
+	var n Network
+	serializer.RegisterTypedDeserializer(n.SerializerType(), DeserializeNetwork)
 }
 
-const LetterCount = 26
-
-const (
-	hiddenDropout  = 0.5
-	outHidden      = 100
-	forwardHidden  = 80
-	backwardHidden = 40
-)
-
-func NewSpeller() rnn.SeqFunc {
-	return newNetwork(len(Phones), LetterCount)
+// A Network can spell and pronounce words.
+type Network struct {
+	Speller    *anyrnn.Bidir
+	Pronouncer *anyrnn.Bidir
 }
 
-func NewPronouncer() rnn.SeqFunc {
-	return newNetwork(LetterCount, len(Phones))
-}
-
-func newNetwork(inSymbols, outSymbols int) rnn.SeqFunc {
-	outNet := neuralnet.Network{
-		&neuralnet.DropoutLayer{
-			KeepProbability: hiddenDropout,
-			Training:        false,
-		},
-		&neuralnet.DenseLayer{
-			InputCount:  forwardHidden + backwardHidden,
-			OutputCount: outHidden,
-		},
-		&neuralnet.HyperbolicTangent{},
-		&neuralnet.DenseLayer{
-			InputCount:  outHidden,
-			OutputCount: outSymbols + 1,
-		},
-		&neuralnet.LogSoftmaxLayer{},
+// DeserializeNetwork deserializes a Network.
+func DeserializeNetwork(d []byte) (*Network, error) {
+	var res Network
+	if err := serializer.DeserializeAny(d, &res.Speller, &res.Pronouncer); err != nil {
+		return nil, essentials.AddCtx("deserialize Network", err)
 	}
-	outNet.Randomize()
+	return &res, nil
+}
 
-	forwardBlock := rnn.NewLSTM(inSymbols+1, forwardHidden)
-	backwardBlock := rnn.NewLSTM(inSymbols+1, backwardHidden)
+// Spell produces a spelling for the pronunciation.
+func (n *Network) Spell(phonetics string) (string, error) {
+	labels, err := phoneLabels(phonetics)
+	if err != nil {
+		return "", essentials.AddCtx("spell", err)
+	}
+	c := n.Speller.Parameters()[0].Vector.Creator()
+	in := spacedInputs(c, labels, len(Phones), phoneSeqSpacing)
+	out := n.Speller.Apply(anyseq.ConstSeqList(c, [][]anyvec.Vector{in}))
+	outLabels := anyctc.BestLabels(out, -1e-3)[0]
 
-	return &rnn.Bidirectional{
-		Forward:  &rnn.BlockSeqFunc{Block: forwardBlock},
-		Backward: &rnn.BlockSeqFunc{Block: backwardBlock},
-		Output:   &rnn.NetworkSeqFunc{Network: outNet},
+	var res string
+	for _, x := range outLabels {
+		res += string(rune(x) + 'a')
+	}
+	return res, nil
+}
+
+// Pronounce produces phonetics for a spelling.
+func (n *Network) Pronounce(spelling string) (string, error) {
+	labels, err := spellingLabels(spelling)
+	if err != nil {
+		return "", essentials.AddCtx("pronounce", err)
+	}
+	c := n.Pronouncer.Parameters()[0].Vector.Creator()
+	in := spacedInputs(c, labels, LetterCount, letterSeqSpacing)
+	out := n.Pronouncer.Apply(anyseq.ConstSeqList(c, [][]anyvec.Vector{in}))
+	outLabels := anyctc.BestLabels(out, -1e-3)[0]
+
+	var res string
+	for _, x := range outLabels {
+		res += Phones[x]
+	}
+	return res, nil
+}
+
+// SerializerType returns the unique ID used to serialize
+// a Network.
+func (n *Network) SerializerType() string {
+	return "github.com/unixpickle/neuralspell.Network"
+}
+
+// Serialize serializes a Network.
+func (n *Network) Serialize() ([]byte, error) {
+	return serializer.SerializeAny(n.Speller, n.Pronouncer)
+}
+
+func newBidir(c anyvec.Creator, inCount, labelCount int) *anyrnn.Bidir {
+	return &anyrnn.Bidir{
+		Forward: anyrnn.Stack{
+			anyrnn.NewLSTM(c, inCount, 0x80),
+			anyrnn.NewLSTM(c, 0x80, 0x80),
+		},
+		Backward: anyrnn.Stack{
+			anyrnn.NewLSTM(c, inCount, 0x80),
+			anyrnn.NewLSTM(c, 0x80, 0x80),
+		},
+		Mixer: &anynet.AddMixer{
+			In1: anynet.NewFC(c, 0x80, 0x80),
+			In2: anynet.NewFC(c, 0x80, 0x80),
+			Out: anynet.Net{
+				anynet.NewFC(c, 0x80, labelCount+1),
+				anynet.LogSoftmax,
+			},
+		},
 	}
 }
