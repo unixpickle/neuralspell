@@ -88,13 +88,14 @@ func (n *Network) Serialize() ([]byte, error) {
 }
 
 func newBidir(c anyvec.Creator, inCount, labelCount int) *anyrnn.Bidir {
+	inScale := c.MakeNumeric(0x10)
 	return &anyrnn.Bidir{
 		Forward: anyrnn.Stack{
-			anyrnn.NewLSTM(c, inCount, 0x80),
+			anyrnn.NewLSTM(c, inCount, 0x80).ScaleInWeights(inScale),
 			anyrnn.NewLSTM(c, 0x80, 0x80),
 		},
 		Backward: anyrnn.Stack{
-			anyrnn.NewLSTM(c, inCount, 0x80),
+			anyrnn.NewLSTM(c, inCount, 0x80).ScaleInWeights(inScale),
 			anyrnn.NewLSTM(c, 0x80, 0x80),
 		},
 		Mixer: &anynet.AddMixer{
