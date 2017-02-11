@@ -1,96 +1,65 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"io/ioutil"
-	"os"
 
+	"github.com/unixpickle/anynet/anysgd"
+	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/neuralspell"
 	"github.com/unixpickle/serializer"
-	"github.com/unixpickle/sgd"
-	"github.com/unixpickle/weakai/rnn"
 )
 
 func main() {
-	if len(os.Args) != 4 {
-		dieUsage()
-	}
-	if os.Args[1] != "spell" && os.Args[1] != "pronounce" {
-		dieUsage()
-	}
-	spelling := os.Args[1] == "spell"
+	var netPath string
+	var dataPath string
+	var task string
 
-	dict, err := neuralspell.ReadDictionary(os.Args[3])
+	flag.StringVar(&netPath, "net", "../train/out_net", "network file path")
+	flag.StringVar(&dataPath, "data", "../dict/cmudict-IPA.txt", "dictionary path")
+	flag.StringVar(&task, "task", "spell", "task ('spell' or 'pronounce')")
+
+	flag.Parse()
+
+	if task != "spell" && task != "pronounce" {
+		essentials.Die("unknown task:", task)
+	}
+
+	var net *neuralspell.Network
+	if err := serializer.LoadAny(netPath, &net); err != nil {
+		essentials.Die(err)
+	}
+
+	dict, err := neuralspell.ReadDictionary(dataPath)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to read dictionary:", err)
-		os.Exit(1)
-	}
-	sgd.ShuffleSampleSet(dict)
-
-	rnnData, err := ioutil.ReadFile(os.Args[2])
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to read RNN:", err)
-		os.Exit(1)
-	}
-	rnnObj, err := serializer.DeserializeWithType(rnnData)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to deserialize RNN:", err)
-		os.Exit(1)
-	}
-	seqFunc, ok := rnnObj.(rnn.SeqFunc)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Invalid deserialized type: %T\n", rnnObj)
-		os.Exit(1)
+		essentials.Die(err)
 	}
 
-	resChan := make(chan bool, 10)
-	if spelling {
-		go rateSpellings(dict, seqFunc, resChan)
-	} else {
-		go ratePronunciations(dict, seqFunc, resChan)
-	}
+	anysgd.Shuffle(dict)
 
-	fmt.Println("Testing on a total of", len(dict.Spellings), "entries...")
+	inputs := dict.Pronunciations
+	outputs := dict.Spellings
+	method := net.Spell
+
+	if task != "spell" {
+		inputs, outputs = outputs, inputs
+		method = net.Pronounce
+	}
 
 	var correct, total int
-	for rating := range resChan {
-		total++
-		if rating {
+	for i, in := range inputs {
+		desired := outputs[i]
+		actual, err := method(in)
+		if err != nil {
+			fmt.Println()
+			essentials.Die(err)
+		}
+		if desired == actual {
 			correct++
 		}
-		fmt.Printf("\rGot %d/%d (%.2f%%)    ", correct, total,
-			100*float64(correct)/float64(total))
+		total++
+		fmt.Printf("\rGot %d/%d (%.2f%%)", correct, total,
+			float64(correct)/float64(total))
 	}
 	fmt.Println()
-}
-
-func rateSpellings(dict *neuralspell.Dictionary, seqFunc rnn.SeqFunc, res chan<- bool) {
-	for i, phonetics := range dict.Pronunciations {
-		actual, err := neuralspell.Spell(seqFunc, phonetics)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "\nFailed to spell:", err)
-			os.Exit(1)
-		}
-		expected := dict.Spellings[i]
-		res <- expected == actual
-	}
-	close(res)
-}
-
-func ratePronunciations(dict *neuralspell.Dictionary, seqFunc rnn.SeqFunc, res chan<- bool) {
-	for i, letters := range dict.Spellings {
-		actual, err := neuralspell.Pronounce(seqFunc, letters)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "\nFailed to pronounce:", err)
-			os.Exit(1)
-		}
-		expected := dict.Pronunciations[i]
-		res <- expected == actual
-	}
-	close(res)
-}
-
-func dieUsage() {
-	fmt.Fprintln(os.Stderr, "Usage:", os.Args[0], "<spell | pronounce> rnn_file dict_file")
-	os.Exit(1)
 }

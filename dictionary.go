@@ -1,12 +1,14 @@
 package neuralspell
 
 import (
+	"crypto/md5"
 	"fmt"
 	"io/ioutil"
 	"strings"
 
 	"github.com/unixpickle/anynet/anyctc"
 	"github.com/unixpickle/anynet/anysgd"
+	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/essentials"
 )
@@ -25,11 +27,11 @@ type Dictionary struct {
 }
 
 // ReadDictionary reads a dictionary from a file.
-func ReadDictionary(file string) (*Dictionary, error) {
+func ReadDictionary(file string) (dict *Dictionary, err error) {
+	defer func() {
+		err = essentials.AddCtx("read dictionary", err)
+	}()
 	contents, err := ioutil.ReadFile(file)
-	if err != nil {
-		return nil, err
-	}
 	lines := strings.Split(string(contents), "\n")
 	res := &Dictionary{}
 	for i, l := range lines {
@@ -72,7 +74,7 @@ func (d *Dictionary) Swap(i, j int) {
 
 // GetSample generates a CTC sample for the entry.
 func (d *Dictionary) GetSample(i int) (*anyctc.Sample, error) {
-	c := anyvec32.CurrentCreator()
+	c := d.Creator()
 	phones, err := phoneLabels(d.Pronunciations[i])
 	if err != nil {
 		return nil, essentials.AddCtx("get sample", err)
@@ -94,6 +96,11 @@ func (d *Dictionary) GetSample(i int) (*anyctc.Sample, error) {
 	}
 }
 
+// Creator returns a 32-bit creator.
+func (d *Dictionary) Creator() anyvec.Creator {
+	return anyvec32.CurrentCreator()
+}
+
 // Slice generates a subset of this sample set.
 func (d *Dictionary) Slice(start, end int) anysgd.SampleList {
 	return &Dictionary{
@@ -101,4 +108,10 @@ func (d *Dictionary) Slice(start, end int) anysgd.SampleList {
 		Pronunciations: append([]string{}, d.Pronunciations[start:end]...),
 		InputPhones:    d.InputPhones,
 	}
+}
+
+// Hash hashes the word at the index.
+func (d *Dictionary) Hash(i int) []byte {
+	h := md5.Sum([]byte(d.Spellings[i]))
+	return h[:]
 }

@@ -1,118 +1,108 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
+	"time"
 
+	"github.com/unixpickle/anynet/anyctc"
+	"github.com/unixpickle/anynet/anysgd"
+	"github.com/unixpickle/anyvec"
+	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/neuralspell"
+	"github.com/unixpickle/rip"
 	"github.com/unixpickle/serializer"
-	"github.com/unixpickle/sgd"
-	"github.com/unixpickle/speechrecog/ctc"
-	"github.com/unixpickle/weakai/neuralnet"
-	"github.com/unixpickle/weakai/rnn"
-)
-
-const (
-	SpellType     = "spell"
-	PronounceType = "pronounce"
-
-	TrainingDataFrac  = 0.8
-	CostBatchSize     = 100
-	TrainingBatchSize = 100
 )
 
 func main() {
-	if len(os.Args) != 4 {
-		dieUsage()
-	}
-	netType := os.Args[1]
-	if netType != SpellType && netType != PronounceType {
-		dieUsage()
+	var netFile string
+	var task string
+	var dataFile string
+	var stepSize float64
+	var validation float64
+	var batchSize int
+
+	flag.StringVar(&netFile, "out", "out_net", "network file path")
+	flag.StringVar(&task, "task", "spell", "task ('spell' or 'pronounce')")
+	flag.StringVar(&dataFile, "data", "../dict/cmudict-IPA.txt", "dictionary path")
+	flag.Float64Var(&stepSize, "step", 0.001, "SGD step size")
+	flag.Float64Var(&validation, "validation", 0.1, "validation fraction")
+	flag.IntVar(&batchSize, "batch", 128, "SGD batch size")
+
+	flag.Parse()
+	if task != "spell" && task != "pronounce" {
+		essentials.Die("unknown task:", task)
 	}
 
 	log.Println("Loading dictionary...")
-	dictionary, err := neuralspell.ReadDictionary(os.Args[2])
+	dictionary, err := neuralspell.ReadDictionary(dataFile)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to read dictionary:", err)
-		os.Exit(1)
+		essentials.Die(err)
 	}
-	dictionary.InputPhones = (netType == SpellType)
+	dictionary.InputPhones = (task == "spell")
 
-	log.Println("Loading/creating network...")
-	var network rnn.SeqFunc
-	netData, err := ioutil.ReadFile(os.Args[3])
-	if err == nil {
-		netObj, err := serializer.DeserializeWithType(netData)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Failed to deserialize network:", err)
-			os.Exit(1)
-		}
-		var ok bool
-		network, ok = netObj.(rnn.SeqFunc)
-		if !ok {
-			fmt.Fprintf(os.Stderr, "Type is not an rnn.SeqFunc: %T\n", network)
-			os.Exit(1)
-		}
+	rand.Seed(time.Now().UnixNano())
+	validationSet, trainingSet := anysgd.HashSplit(dictionary, validation)
+	log.Println("Loaded", trainingSet.Len(), "training and", validationSet.Len(),
+		"validation samples.")
+
+	var net *neuralspell.Network
+	if err = serializer.LoadAny(netFile, &net); err != nil {
+		log.Println("Creating new network...")
+		net = neuralspell.NewNetwork()
 	} else {
-		if netType == SpellType {
-			network = neuralspell.NewSpeller()
-		} else {
-			network = neuralspell.NewPronouncer()
-		}
+		log.Println("Loaded network.")
 	}
 
 	log.Println("Training...")
-	trainNetwork(netType == SpellType, network, dictionary)
-
-	log.Println("Saving network...")
-	serialized, err := serializer.SerializeWithType(network.(serializer.Serializer))
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to serialize:", err)
-		os.Exit(1)
+	bidir := net.Speller
+	if !dictionary.InputPhones {
+		bidir = net.Pronouncer
 	}
-	if err := ioutil.WriteFile(os.Args[3], serialized, 0755); err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to save network:", err)
-		os.Exit(1)
+	trainer := &anyctc.Trainer{
+		Func:    bidir.Apply,
+		Params:  bidir.Parameters(),
+		Average: true,
 	}
-}
-
-func trainNetwork(inPhones bool, net rnn.SeqFunc, samples sgd.SampleSet) {
-	gradienter := &sgd.Adam{
-		Gradienter: &ctc.RGradienter{
-			Learner:        net.(sgd.Learner),
-			SeqFunc:        net,
-			MaxConcurrency: 2,
-			MaxSubBatch:    TrainingBatchSize/2 + (TrainingBatchSize % 2),
+	var iter int
+	sgd := &anysgd.SGD{
+		Fetcher:     trainer,
+		Gradienter:  trainer,
+		Transformer: &anysgd.Adam{},
+		Samples:     trainingSet,
+		Rater:       anysgd.ConstRater(stepSize),
+		BatchSize:   batchSize,
+		StatusFunc: func(b anysgd.Batch) {
+			if validationSet.Len() > 0 {
+				log.Printf("iter %d: cost=%v validation=%v", iter, trainer.LastCost,
+					crossValidate(trainer, validationSet, batchSize))
+			} else {
+				log.Printf("iter %d: cost=%v", iter, trainer.LastCost)
+			}
+			iter++
 		},
 	}
-	toggleDropout(net, true)
+	err = sgd.Run(rip.NewRIP().Chan())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
 
-	sgd.ShuffleSampleSet(samples)
-	training := samples.Copy().Subset(0, int(float64(samples.Len())*TrainingDataFrac))
-	validation := samples.Copy().Subset(training.Len(), samples.Len())
-
-	var epoch int
-	sgd.SGDInteractive(gradienter, training, 1e-3, TrainingBatchSize, func() bool {
-		toggleDropout(net, false)
-		cost := ctc.TotalCost(net, training, CostBatchSize, 2)
-		crossCost := ctc.TotalCost(net, validation, CostBatchSize, 2)
-		toggleDropout(net, true)
-		log.Printf("Epoch %d: cost=%e cross=%e", epoch, cost, crossCost)
-		epoch++
-		return true
-	})
-	toggleDropout(net, false)
+	log.Println("Saving network...")
+	if err := serializer.SaveAny(netFile, net); err != nil {
+		essentials.Die(err)
+	}
 }
 
-func toggleDropout(net rnn.SeqFunc, dropout bool) {
-	bd := net.(*rnn.Bidirectional)
-	output := bd.Output.(*rnn.NetworkSeqFunc).Network[0].(*neuralnet.DropoutLayer)
-	output.Training = dropout
-}
-
-func dieUsage() {
-	fmt.Fprintln(os.Stderr, "Usage:", os.Args[0], "<spell | pronounce> dictionary.txt out_net")
-	os.Exit(1)
+func crossValidate(t *anyctc.Trainer, s anysgd.SampleList, batch int) anyvec.Numeric {
+	anysgd.Shuffle(s)
+	bs := batch
+	if bs > s.Len() {
+		bs = s.Len()
+	}
+	samples := s.Slice(0, bs)
+	b, _ := t.Fetch(samples)
+	return anyvec.Sum(t.TotalCost(b.(*anyctc.Batch)).Output())
 }

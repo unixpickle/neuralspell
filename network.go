@@ -6,6 +6,7 @@ import (
 	"github.com/unixpickle/anynet/anyctc"
 	"github.com/unixpickle/anynet/anyrnn"
 	"github.com/unixpickle/anyvec"
+	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/serializer"
 )
@@ -28,6 +29,15 @@ func DeserializeNetwork(d []byte) (*Network, error) {
 		return nil, essentials.AddCtx("deserialize Network", err)
 	}
 	return &res, nil
+}
+
+// NewNetwork creates a new, untrained network.
+func NewNetwork() *Network {
+	c := anyvec32.CurrentCreator()
+	return &Network{
+		Speller:    newBidir(c, len(Phones), LetterCount),
+		Pronouncer: newBidir(c, LetterCount, len(Phones)),
+	}
 }
 
 // Spell produces a spelling for the pronunciation.

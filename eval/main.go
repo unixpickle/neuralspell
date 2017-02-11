@@ -1,58 +1,44 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"io/ioutil"
-	"os"
 
+	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/neuralspell"
 	"github.com/unixpickle/serializer"
-	"github.com/unixpickle/weakai/rnn"
 )
 
 func main() {
-	if len(os.Args) != 4 {
-		dieUsage()
-	}
-	if os.Args[1] != "spell" && os.Args[1] != "pronounce" {
-		dieUsage()
-	}
-	spelling := os.Args[1] == "spell"
+	var netPath string
+	var input string
+	var task string
 
-	rnnData, err := ioutil.ReadFile(os.Args[2])
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to read RNN:", err)
-		os.Exit(1)
-	}
-	rnnObj, err := serializer.DeserializeWithType(rnnData)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to deserialize RNN:", err)
-		os.Exit(1)
-	}
-	seqFunc, ok := rnnObj.(rnn.SeqFunc)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Invalid deserialized type: %T\n", rnnObj)
-		os.Exit(1)
+	flag.StringVar(&netPath, "net", "../train/out_net", "network file path")
+	flag.StringVar(&input, "input", "", "input spelling or phonetics")
+	flag.StringVar(&task, "task", "spell", "task ('spell' or 'pronounce')")
+
+	flag.Parse()
+
+	if input == "" {
+		essentials.Die("missing -input flag (see -help for more)")
+	} else if task != "spell" && task != "pronounce" {
+		essentials.Die("unknown task:", task)
 	}
 
-	if spelling {
-		out, err := neuralspell.Spell(seqFunc, os.Args[3])
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Failed to spell:", err)
-			os.Exit(1)
-		}
-		fmt.Println("Spelling:", out)
+	var net *neuralspell.Network
+	if err := serializer.LoadAny(netPath, &net); err != nil {
+		essentials.Die(err)
+	}
+
+	method := net.Spell
+	if task != "spell" {
+		method = net.Pronounce
+	}
+	out, err := method(input)
+	if err != nil {
+		essentials.Die(err)
 	} else {
-		out, err := neuralspell.Pronounce(seqFunc, os.Args[3])
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Failed to pronounce:", err)
-			os.Exit(1)
-		}
-		fmt.Println("Pronunciation:", out)
+		fmt.Println(out)
 	}
-}
-
-func dieUsage() {
-	fmt.Fprintln(os.Stderr, "Usage:", os.Args[0], "<spell | pronounce> rnn_file input_text")
-	os.Exit(1)
 }
