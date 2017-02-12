@@ -62,7 +62,7 @@ Next, download the code as follows:
 $ go get -d -u github.com/unixpickle/neuralspell/...
 ```
 
-The repository includes sub-directories for various commands. The [train](#Training) command is the first thing you will want to use. After that, you can use the [eval](#Feeding-input) command to run the network on a new word or phonetic transcription.
+The repository includes sub-directories for various commands. The [train](#training) command is the first thing you will want to use. After that, you can use the [eval](#feeding-input) command to run the network on a new word or phonetic transcription.
 
 ## Training
 
@@ -81,7 +81,7 @@ I recommend training for at least an hour per task. See `-help` for more informa
 
 ## Feeding input
 
-To evaluate the network on new inputs, you can use the `eval` command. Note that you must already have [trained](#Training) the network on the task at hand.
+To evaluate the network on new inputs, you can use the `eval` command. Note that you must already have [trained](#training) the network on the task at hand.
 
 ```
 $ cd $GOPATH/src/github.com/unixpickle/neuralspell/eval
