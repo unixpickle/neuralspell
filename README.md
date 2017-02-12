@@ -1,6 +1,6 @@
 # neuralspell
 
-Spelling reveals a lot about humanity in general: it's messy, inconsistent, and self-contradictory. Despite all of this, people have various mental heuristics that help them spell or pronounce new words. This is the behavior I want to instill in a neural network.
+Spelling reveals a lot about humanity: it's messy, inconsistent, and self-contradictory. Despite all of this, people have mental heuristics for spelling and pronouncing new words. I want to see how well neural networks can learn those same heuristics.
 
 The goal of this project is to train recurrent neural networks on two tasks:
 
@@ -9,7 +9,17 @@ The goal of this project is to train recurrent neural networks on two tasks:
 
 # Usage
 
-First, you should install and configure [Go](https://golang.org/doc/install). Make sure your GOPATH is setup. Next, download the code as follows:
+First, you should install and configure [Go](https://golang.org/doc/install). Make sure your GOPATH is setup.
+
+If you don't want to setup Go yourself, you can use the [Docker](https://www.docker.com) image for Go. It has everything that you will need:
+
+```
+$ docker run -it golang:1.7 /bin/bash
+```
+
+## Downloading the code
+
+Next, download the code as follows:
 
 ```
 $ go get -d -u github.com/unixpickle/neuralspell/...
