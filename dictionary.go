@@ -91,7 +91,7 @@ func (d *Dictionary) GetSample(i int) (*anyctc.Sample, error) {
 	} else {
 		return &anyctc.Sample{
 			Input: spacedInputs(c, spelling, LetterCount, letterSeqSpacing),
-			Label: spelling,
+			Label: phones,
 		}, nil
 	}
 }
