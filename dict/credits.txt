@@ -1,0 +1,1 @@
+Dictionary data taken from: http://www.speech.cs.cmu.edu/cgi-bin/cmudict
