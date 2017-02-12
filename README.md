@@ -7,6 +7,43 @@ The goal of this project is to train recurrent neural networks on two tasks:
  * **Spelling:** converting phonetic transcriptions to an English spelling.
  * **Pronunciation:** converting English spellings to phonetic transcriptions.
 
+# Results
+
+After training for one epoch, here are some results:
+
+<table>
+  <tr>
+    <th>Word</th>
+    <th>Pronunciation</th>
+    <th>Network Spelling</th>
+    <th>Network Pronunciation</th>
+  </tr>
+  <tr>
+    <td>invader</td>
+    <td>InveIdəɹ</td>
+    <td>invader</td>
+    <td>Invedəɹ</td>
+  </tr>
+  <tr>
+    <td>twelve</td>
+    <td>twɛlv</td>
+    <td>twelve</td>
+    <td>twɛlv</td>
+  </tr>
+  <tr>
+    <td>evaluate</td>
+    <td>IvæljueIt</td>
+    <td>evaluate</td>
+    <td>ɛvʌlueIt</td>
+  </tr>
+  <tr>
+    <td>guilty</td>
+    <td>gIlti</td>
+    <td>gilty</td>
+    <td>gIlti</td>
+  </tr>
+</table>
+
 # Usage
 
 First, you should install and configure [Go](https://golang.org/doc/install). Make sure your GOPATH is setup.
