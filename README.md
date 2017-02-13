@@ -85,10 +85,10 @@ To evaluate the network on new inputs, you can use the `eval` command. Note that
 
 ```
 $ cd $GOPATH/src/github.com/unixpickle/neuralspell/eval
-$ go run *.go -input dɔg
-dog
-$ go run *.go -input dog -task spell
-dɔg
+$ go run *.go -phonetics dɔg
+Spelling: dog
+$ go run *.go -spelling dog -task spell
+Pronunciation: dag
 ```
 
 If you have not trained the network, the command will probably take a long time to run. This is because, to decode the output of the network, `eval` uses a technique called prefix search decoding. If the network was not trained very much, prefix search decoding has to search a vast array of possible decodings.

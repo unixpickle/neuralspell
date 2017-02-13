@@ -11,19 +11,17 @@ import (
 
 func main() {
 	var netPath string
-	var input string
-	var task string
+	var phonetics string
+	var spelling string
 
 	flag.StringVar(&netPath, "net", "../train/out_net", "network file path")
-	flag.StringVar(&input, "input", "", "input spelling or phonetics")
-	flag.StringVar(&task, "task", "spell", "task ('spell' or 'pronounce')")
+	flag.StringVar(&phonetics, "phonetics", "", "input phonetics")
+	flag.StringVar(&spelling, "spelling", "", "input spelling")
 
 	flag.Parse()
 
-	if input == "" {
-		essentials.Die("missing -input flag (see -help for more)")
-	} else if task != "spell" && task != "pronounce" {
-		essentials.Die("unknown task:", task)
+	if phonetics == "" && spelling == "" {
+		essentials.Die("Must specify -phonetics or -spelling. See -help.")
 	}
 
 	var net *neuralspell.Network
@@ -31,14 +29,26 @@ func main() {
 		essentials.Die(err)
 	}
 
-	method := net.Spell
-	if task != "spell" {
-		method = net.Pronounce
+	if phonetics != "" {
+		sp, err := net.Spell(phonetics)
+		if err != nil {
+			essentials.Die(err)
+		}
+		fmt.Println("Spelling:", sp)
 	}
-	out, err := method(input)
-	if err != nil {
-		essentials.Die(err)
-	} else {
-		fmt.Println(out)
+	if spelling != "" {
+		pron, err := net.Pronounce(spelling)
+		if err != nil {
+			essentials.Die(err)
+		}
+		fmt.Println("Pronunciation:", pron)
+	}
+	if spelling != "" && phonetics != "" {
+		spellCost, pronCost, err := net.Costs(spelling, phonetics)
+		if err != nil {
+			essentials.Die(err)
+		}
+		fmt.Println("Spell cost:", spellCost)
+		fmt.Println("Pronounce cost:", pronCost)
 	}
 }

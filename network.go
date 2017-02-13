@@ -76,6 +76,36 @@ func (n *Network) Pronounce(spelling string) (string, error) {
 	return res, nil
 }
 
+// Costs returns the CTC costs both for trying to spell
+// the word and for attempting to pronounce it.
+func (n *Network) Costs(spelling, phonetics string) (spellCost, pronCost float64, err error) {
+	defer essentials.AddCtxTo("compute costs", &err)
+	spellLabels, err := spellingLabels(spelling)
+	if err != nil {
+		return
+	}
+	pronLabels, err := phoneLabels(phonetics)
+	if err != nil {
+		return
+	}
+
+	c := n.Speller.Parameters()[0].Vector.Creator()
+
+	spellIn := anyseq.ConstSeqList(c, [][]anyvec.Vector{
+		spacedInputs(c, spellLabels, LetterCount, letterSeqSpacing),
+	})
+	cost1 := anyctc.Cost(n.Pronouncer.Apply(spellIn), [][]int{pronLabels})
+	pronIn := anyseq.ConstSeqList(c, [][]anyvec.Vector{
+		spacedInputs(c, pronLabels, len(Phones), phoneSeqSpacing),
+	})
+	cost2 := anyctc.Cost(n.Speller.Apply(pronIn), [][]int{spellLabels})
+
+	spellCost = float64(cost2.Output().Data().([]float32)[0])
+	pronCost = float64(cost1.Output().Data().([]float32)[0])
+
+	return
+}
+
 // SerializerType returns the unique ID used to serialize
 // a Network.
 func (n *Network) SerializerType() string {
