@@ -4,9 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
-	"time"
 
 	"github.com/unixpickle/anynet/anyctc"
 	"github.com/unixpickle/anynet/anysgd"
@@ -20,16 +18,16 @@ import (
 func main() {
 	var netFile string
 	var task string
-	var dataFile string
+	var trainingFile string
+	var validationFile string
 	var stepSize float64
-	var validation float64
 	var batchSize int
 
 	flag.StringVar(&netFile, "out", "out_net", "network file path")
 	flag.StringVar(&task, "task", "spell", "task ('spell' or 'pronounce')")
-	flag.StringVar(&dataFile, "data", "../dict/cmudict-IPA.txt", "dictionary path")
+	flag.StringVar(&trainingFile, "training", "../dict/training.txt", "training data")
+	flag.StringVar(&validationFile, "validation", "../dict/validation.txt", "validation data")
 	flag.Float64Var(&stepSize, "step", 0.001, "SGD step size")
-	flag.Float64Var(&validation, "validation", 0.1, "validation fraction")
 	flag.IntVar(&batchSize, "batch", 128, "SGD batch size")
 
 	flag.Parse()
@@ -38,14 +36,17 @@ func main() {
 	}
 
 	log.Println("Loading dictionary...")
-	dictionary, err := neuralspell.ReadDictionary(dataFile)
+	trainingSet, err := neuralspell.ReadDictionary(trainingFile)
 	if err != nil {
 		essentials.Die(err)
 	}
-	dictionary.InputPhones = (task == "spell")
+	validationSet, err := neuralspell.ReadDictionary(validationFile)
+	if err != nil {
+		essentials.Die(err)
+	}
+	trainingSet.InputPhones = (task == "spell")
+	validationSet.InputPhones = trainingSet.InputPhones
 
-	rand.Seed(time.Now().UnixNano())
-	validationSet, trainingSet := anysgd.HashSplit(dictionary, validation)
 	log.Println("Loaded", trainingSet.Len(), "training and", validationSet.Len(),
 		"validation samples.")
 
@@ -59,7 +60,7 @@ func main() {
 
 	log.Println("Training...")
 	bidir := net.Speller
-	if !dictionary.InputPhones {
+	if !trainingSet.InputPhones {
 		bidir = net.Pronouncer
 	}
 	trainer := &anyctc.Trainer{
