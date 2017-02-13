@@ -132,6 +132,7 @@ func newBidir(c anyvec.Creator, inCount, labelCount, hidden int) *anyrnn.Bidir {
 			In1: anynet.NewFC(c, hidden, hidden),
 			In2: anynet.NewFC(c, hidden, hidden),
 			Out: anynet.Net{
+				anynet.Tanh,
 				anynet.NewFC(c, hidden, labelCount+1),
 				anynet.LogSoftmax,
 			},
