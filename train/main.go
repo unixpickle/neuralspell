@@ -22,6 +22,7 @@ func main() {
 	var validationFile string
 	var stepSize float64
 	var batchSize int
+	var hiddenSize int
 
 	flag.StringVar(&netFile, "out", "out_net", "network file path")
 	flag.StringVar(&task, "task", "spell", "task ('spell' or 'pronounce')")
@@ -29,6 +30,7 @@ func main() {
 	flag.StringVar(&validationFile, "validation", "../dict/validation.txt", "validation data")
 	flag.Float64Var(&stepSize, "step", 0.001, "SGD step size")
 	flag.IntVar(&batchSize, "batch", 128, "SGD batch size")
+	flag.IntVar(&hiddenSize, "hidden", 0x80, "network hidden size")
 
 	flag.Parse()
 	if task != "spell" && task != "pronounce" {
@@ -53,7 +55,7 @@ func main() {
 	var net *neuralspell.Network
 	if err = serializer.LoadAny(netFile, &net); err != nil {
 		log.Println("Creating new network...")
-		net = neuralspell.NewNetwork()
+		net = neuralspell.NewNetwork(hiddenSize)
 	} else {
 		log.Println("Loaded network.")
 	}

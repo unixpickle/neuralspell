@@ -32,11 +32,11 @@ func DeserializeNetwork(d []byte) (*Network, error) {
 }
 
 // NewNetwork creates a new, untrained network.
-func NewNetwork() *Network {
+func NewNetwork(hiddenSize int) *Network {
 	c := anyvec32.CurrentCreator()
 	return &Network{
-		Speller:    newBidir(c, len(Phones), LetterCount),
-		Pronouncer: newBidir(c, LetterCount, len(Phones)),
+		Speller:    newBidir(c, len(Phones), LetterCount, hiddenSize),
+		Pronouncer: newBidir(c, LetterCount, len(Phones), hiddenSize),
 	}
 }
 
@@ -117,22 +117,22 @@ func (n *Network) Serialize() ([]byte, error) {
 	return serializer.SerializeAny(n.Speller, n.Pronouncer)
 }
 
-func newBidir(c anyvec.Creator, inCount, labelCount int) *anyrnn.Bidir {
+func newBidir(c anyvec.Creator, inCount, labelCount, hidden int) *anyrnn.Bidir {
 	inScale := c.MakeNumeric(0x10)
 	return &anyrnn.Bidir{
 		Forward: anyrnn.Stack{
-			anyrnn.NewLSTM(c, inCount, 0x80).ScaleInWeights(inScale),
-			anyrnn.NewLSTM(c, 0x80, 0x80),
+			anyrnn.NewLSTM(c, inCount, hidden).ScaleInWeights(inScale),
+			anyrnn.NewLSTM(c, hidden, hidden),
 		},
 		Backward: anyrnn.Stack{
-			anyrnn.NewLSTM(c, inCount, 0x80).ScaleInWeights(inScale),
-			anyrnn.NewLSTM(c, 0x80, 0x80),
+			anyrnn.NewLSTM(c, inCount, hidden).ScaleInWeights(inScale),
+			anyrnn.NewLSTM(c, hidden, hidden),
 		},
 		Mixer: &anynet.AddMixer{
-			In1: anynet.NewFC(c, 0x80, 0x80),
-			In2: anynet.NewFC(c, 0x80, 0x80),
+			In1: anynet.NewFC(c, hidden, hidden),
+			In2: anynet.NewFC(c, hidden, hidden),
 			Out: anynet.Net{
-				anynet.NewFC(c, 0x80, labelCount+1),
+				anynet.NewFC(c, hidden, labelCount+1),
 				anynet.LogSoftmax,
 			},
 		},
