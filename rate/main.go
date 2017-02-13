@@ -59,7 +59,7 @@ func main() {
 		}
 		total++
 		fmt.Printf("\rGot %d/%d (%.2f%%)", correct, total,
-			float64(correct)/float64(total))
+			100*float64(correct)/float64(total))
 	}
 	fmt.Println()
 }
